@@ -6,7 +6,7 @@ A funny library to hook golang function dynamically at runtime, enabling functio
 
 The most significant feature this library provided that makes it distinguished from others is that it supports calling back to the original function.
 
-Read this blogpost for further explanation of the implementation detail: https://www.cnblogs.com/catch/p/10973611.html
+Read following blogpost for further explanation of the implementation detail: [1](https://www.cnblogs.com/catch/p/10973611.html),[2](https://onedrive.live.com/View.aspx?resid=7804A3BDAEB13A9F!58083&authkey=!AKVlLS9s9KYh07s)
 
 ## How it works
 
@@ -22,14 +22,15 @@ It may seem risky and dangerous to perform operations like these at first glance
 
 ## Using gohook
 
-Four api are exported from this library, the signatures are simple as illustrated following:
+5 api are exported from this library, the signatures are simple as illustrated following:
 
 1. `func Hook(target, replace, trampoline interface{}) error;`
 2. `func UnHook(target interface{}) error;`
-3. `func HookMethod(instance interface{}, method string, replace, trampoline interface{}) error;`
-4. `func UnHookMethod(instance interface{}, method string) error;`
+3. `func HookByIndirectJmp(target, replace, trampoline interface{});`
+4. `func HookMethod(instance interface{}, method string, replace, trampoline interface{}) error;`
+5. `func UnHookMethod(instance interface{}, method string) error;`
 
-The first 2 functions are used to hook/unhook regular functions, the rest are for instance method, as the naming imply.
+The first 3 functions are used to hook/unhook regular functions, the rest are for instance method, as the naming implies(essentially, HookMethod(obj,x,y,z) is the same as Hook(ObjType.x,y,z)).
 
 Basically, you can just call `gohook.Hook(fmt.Printf, myPrintf, myPrintfTramp)` to hook the fmt.Printf in the standard library.
 
@@ -37,13 +38,20 @@ Trampolines here serves as a shadow function after the target function is hooked
 
 In situation where calling back to the original function is not needed, trampoline can be passed a nil value.
 
+HookByIndirectJmp() differs from Hook() in that it uses rdx to perform an indirect jump from a funcval, and:
+
+1. `rdx is the context register used by compiler to access funcval.`
+2. `funcval contains extra information for a closure, which is used by compiler and runtime.`
+
+this makes it possible to hook closure function and function created by reflect.MakeFunc(), **in a less compatible way**, since the implementaion of this hook has to guess the memory layout of a reflect.Value object, which may vary from different version of runtime.
+
 ```go
 package main
 
 import (
 	"fmt"
+	"github.com/brahma-adshonor/gohook"
 	"os"
-	"github.com/kmalloc/gohook"
 )
 
 func myPrintln(a ...interface{}) (n int, err error) {
